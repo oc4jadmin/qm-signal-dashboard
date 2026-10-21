@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="ms" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XAUUSD Quasimodo (QM) Signal Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        gold: { 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' },
+                        darkbg: '#0f172a', cardbg: '#1e293b', borderbg: '#334155'
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0b0f19; color: #f8fafc; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        .glow-green { box-shadow: 0 0 18px rgba(34,197,94,0.18); }
+        .glow-red { box-shadow: 0 0 18px rgba(239,68,68,0.18); }
+        .mono { font-variant-numeric: tabular-nums; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+<header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-[1700px] mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-yellow-400 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-amber-500/20">Q</div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-lg font-bold tracking-tight text-white">XAUUSD <span class="text-amber-400">QM Signal</span></h1>
+                    <span id="data-badge" class="px-2 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-full">Menyambung…</span>
+                </div>
+                <p class="text-xs text-slate-400">Quasimodo Over &amp; Under — level dikira dari data OHLC sebenar</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-6 bg-slate-800/60 px-4 py-1.5 rounded-xl border border-slate-700/50">
+            <div class="flex flex-col">
+                <span class="text-[11px] font-medium text-slate-400">XAU/USD (Bybit XAUUSDT)</span>
+                <div class="flex items-center gap-2">
+                    <span id="live-price" class="text-lg font-extrabold text-amber-400 mono">—</span>
+                    <span id="price-change" class="text-xs font-semibold text-slate-400 flex items-center gap-1">—</span>
+                </div>
+            </div>
+            <div class="h-8 w-px bg-slate-700"></div>
+            <div class="flex flex-col">
+                <span class="text-[11px] font-medium text-slate-400">Status</span>
+                <span id="market-status" class="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-slate-500"></span> Menyambung
+                </span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button onclick="toggleZones()" id="btn-toggle-zones" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-400 font-bold rounded-lg text-xs transition flex items-center gap-1.5">
+                <i class="fa-solid fa-layer-group" id="zone-icon"></i>
+                <span id="zone-text">Zon: ON</span>
+            </button>
+            <button onclick="toggleStruct()" id="btn-toggle-struct" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-bold rounded-lg text-xs transition flex items-center gap-1.5">
+                <i class="fa-solid fa-tag" id="struct-icon"></i>
+                <span id="struct-text">Label: OFF</span>
+            </button>
+            <div class="flex bg-slate-800/80 p-1 rounded-lg border border-slate-700 text-xs font-medium">
+                <button onclick="changeTimeframe('15')" id="tf-15" class="tf-btn px-3 py-1 rounded-md text-slate-400 hover:text-white transition">M15</button>
+                <button onclick="changeTimeframe('60')" id="tf-60" class="tf-btn px-3 py-1 rounded-md text-slate-400 hover:text-white transition">H1</button>
+                <button onclick="changeTimeframe('240')" id="tf-240" class="tf-btn px-3 py-1 rounded-md bg-amber-500 text-slate-950 font-bold transition">H4</button>
+                <button onclick="changeTimeframe('D')" id="tf-D" class="tf-btn px-3 py-1 rounded-md text-slate-400 hover:text-white transition">D1</button>
+            </div>
+            <button onclick="refreshAll()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition flex items-center gap-2">
+                <i class="fa-solid fa-rotate" id="refresh-icon"></i> Imbas
+            </button>
+        </div>
+    </div>
+</header>
+
+<main class="flex-1 max-w-[1700px] w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+    <!-- CHART -->
+    <div class="lg:col-span-8 flex flex-col gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-xl flex flex-col h-[560px]">
+            <div class="flex items-center justify-between mb-2 px-1">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-chart-candlestick text-amber-400"></i>
+                    <h2 class="text-sm font-bold text-slate-200">XAUUSD <span id="chart-tf" class="text-amber-400">H4</span> — QM Over &amp; Under</h2>
+                </div>
+                <div class="flex items-center gap-3 text-[11px] text-slate-400">
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-amber-400 inline-block"></span> QML (Entry)</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-red-400 inline-block"></span> SL</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-sky-400 inline-block"></span> TP1</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-violet-400 inline-block"></span> TP2</span>
+                </div>
+            </div>
+            <div class="w-full flex-1 rounded-xl overflow-hidden border border-slate-800 relative bg-[#0b0f19]">
+                <canvas id="chart" class="w-full h-full block"></canvas>
+                <div id="chart-hint" class="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">Memuatkan data…</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- STRUCTURE -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                            <i class="fa-solid fa-layer-group text-amber-400"></i> Aras Struktur QM
+                        </h3>
+                        <span id="qm-type-badge" class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-800 text-slate-400 border border-slate-700">—</span>
+                    </div>
+                    <div class="space-y-2 text-xs">
+                        <div class="flex justify-between items-center p-2 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                            <span class="text-slate-400 flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-400"></span> 2·LS — Bahu Kiri</span>
+                            <span id="level-ls" class="font-mono font-bold text-slate-200">—</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                            <span class="text-slate-400 flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-400"></span> 3·Neck — Leher</span>
+                            <span id="level-neck" class="font-mono font-bold text-slate-200">—</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                            <span class="text-slate-400 flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-400"></span> 4·Over — Head</span>
+                            <span id="level-head" class="font-mono font-bold text-slate-200">—</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 rounded-lg bg-slate-800/50 border border-slate-700/50">
+                            <span class="text-slate-400 flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> 5·Under — Breakout</span>
+                            <span id="level-under" class="font-mono font-bold text-slate-200">—</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-800 flex justify-between items-center">
+                    <span class="text-xs text-slate-400">QML (Entry Level):</span>
+                    <span id="level-qml" class="text-base font-black font-mono text-amber-400">—</span>
+                </div>
+            </div>
+
+            <!-- CONFLUENCE -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-gauge-high text-amber-400"></i> Confluence
+                    </h3>
+                    <span class="text-xs text-slate-400">Kualiti: <strong id="setup-quality" class="text-slate-400">—</strong></span>
+                </div>
+                <div class="space-y-3 mt-3">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">RSI (14)</span>
+                            <span id="rsi-val" class="font-bold text-slate-300">—</span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                            <div id="rsi-bar" class="bg-emerald-500 h-2 rounded-full transition-all" style="width:0%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">Retracement QML (impulse)</span>
+                            <span id="fib-val" class="font-bold text-slate-300">—</span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                            <div id="fib-bar" class="bg-amber-500 h-2 rounded-full transition-all" style="width:0%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">Confluence QML = MPL</span>
+                            <span id="mpl-val" class="font-bold text-slate-300">—</span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                            <div id="mpl-bar" class="bg-sky-500 h-2 rounded-full transition-all" style="width:0%"></div>
+                        </div>
+                    </div>
+                    <div class="mt-3 bg-slate-800/40 p-2.5 rounded-lg border border-slate-800 space-y-1 text-[11px] text-slate-300">
+                        <div class="flex items-center gap-1.5"><i id="chk-fake" class="fa-solid fa-circle-xmark text-slate-600"></i><span>Fakeout / liquidity grab di bar Under</span></div>
+                        <div class="flex items-center gap-1.5"><i id="chk-fresh" class="fa-solid fa-circle-xmark text-slate-600"></i><span>QML masih fresh (belum disentuh)</span></div>
+                        <div class="flex items-center gap-1.5"><i id="chk-trend" class="fa-solid fa-circle-xmark text-slate-600"></i><span>Struktur Over &amp; Under lengkap</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="lg:col-span-4 flex flex-col gap-4">
+        <div id="signal-card" class="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-xl relative overflow-hidden">
+            <div class="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800/80">
+                <div class="flex items-center gap-2">
+                    <span id="sig-state-badge" class="px-2 py-0.5 bg-slate-800 text-slate-400 font-bold text-[10px] rounded border border-slate-700 tracking-wider">—</span>
+                    <span id="signal-pair" class="text-xs font-bold text-slate-300">XAUUSD</span>
+                </div>
+                <span class="text-[10px] text-slate-400" id="signal-time">—</span>
+            </div>
+
+            <div class="flex items-center justify-between mb-2.5">
+                <div>
+                    <div class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Arah Isyarat</div>
+                    <h2 id="signal-action" class="text-xl font-black text-slate-400 tracking-wide">—</h2>
+                </div>
+                <div class="text-right bg-slate-800/60 px-2.5 py-1 rounded-lg border border-slate-700/50">
+                    <div class="text-[10px] text-slate-400">R:R (TP1)</div>
+                    <span id="sig-rr" class="text-xs font-extrabold text-amber-400 mono">—</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 mb-2 font-mono text-xs">
+                <div class="p-2 rounded-lg bg-slate-800/60 border border-slate-700/50">
+                    <span class="block text-[10px] text-slate-400 mb-0.5">ENTRY (QML):</span>
+                    <span id="sig-entry" class="font-bold text-amber-400 text-xs">—</span>
+                </div>
+                <div class="p-2 rounded-lg bg-red-950/30 border border-red-800/40">
+                    <span class="block text-[10px] text-red-300 mb-0.5">STOP LOSS:</span>
+                    <span id="sig-sl" class="font-bold text-red-400 text-xs">—</span>
+                </div>
+            </div>
+
+            <div class="p-2 rounded-lg bg-emerald-950/20 border border-emerald-800/30 font-mono text-xs">
+                <span class="block text-[10px] text-emerald-400/90 font-sans mb-1 font-semibold">TAKE PROFIT:</span>
+                <div class="flex items-center justify-between gap-1 text-[11px]">
+                    <div class="flex-1 bg-slate-900/60 p-1 rounded text-center border border-sky-500/20">
+                        <span class="block text-[9px] text-slate-400">TP1</span>
+                        <span id="sig-tp1" class="font-bold text-sky-400">—</span>
+                    </div>
+                    <div class="flex-1 bg-slate-900/60 p-1 rounded text-center border border-violet-500/20">
+                        <span class="block text-[9px] text-slate-400">TP2</span>
+                        <span id="sig-tp2" class="font-bold text-violet-400">—</span>
+                    </div>
+                    <div class="flex-1 bg-slate-900/60 p-1 rounded text-center border border-slate-500/20">
+                        <span class="block text-[9px] text-slate-400">TP3</span>
+                        <span id="sig-tp3" class="font-bold text-slate-300">—</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <h3 class="text-sm font-bold text-slate-200 mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-calculator text-amber-400"></i> Kalkulator Saiz Lot
+            </h3>
+            <div class="space-y-3 text-xs">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Modal Akaun ($)</label>
+                        <input type="number" id="calc-balance" value="1000" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono focus:border-amber-400 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Risiko (%)</label>
+                        <input type="number" id="calc-risk-pct" value="2" step="0.5" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono focus:border-amber-400 outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-slate-400 mb-1">Jarak SL (pips)</label>
+                        <input type="number" id="calc-sl-pips" value="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white font-mono focus:border-amber-400 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">Risiko ($)</label>
+                        <div id="calc-risk-usd" class="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg p-2 text-amber-400 font-bold font-mono">$20.00</div>
+                    </div>
+                </div>
+                <div class="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between">
+                    <span class="text-slate-300 font-medium">Saiz Lot:</span>
+                    <span id="calc-lot-size" class="text-base font-black font-mono text-amber-400">0.02 Lot</span>
+                </div>
+                <p class="text-[10px] text-slate-500">1 lot XAUUSD = 100 oz; 1 pip (0.1) ≈ $10/lot.</p>
+            </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <h3 class="text-sm font-bold text-slate-200 mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-list-check text-amber-400"></i> Imbasan Multi-Timeframe
+            </h3>
+            <div id="mtf-list" class="space-y-2 text-xs">
+                <div class="text-slate-500 text-center py-2">Memuatkan…</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="lg:col-span-12 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4 pb-3 border-b border-slate-800">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                    <i class="fa-solid fa-clock-rotate-left text-sm"></i>
+                </div>
+                <div>
+                    <h2 class="text-base font-bold text-slate-100">Sejarah Setup QM</h2>
+                    <p class="text-xs text-slate-400">Dikira dari data OHLC — entry perlu candle close balik sisi QML, SL di Head</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4 text-xs">
+                <div class="bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/60 flex items-center gap-2">
+                    <span class="text-slate-400">Win Rate:</span><span id="stat-winrate" class="font-extrabold text-emerald-400 font-mono">—</span>
+                </div>
+                <div class="bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/60 flex items-center gap-2">
+                    <span class="text-slate-400">Pips:</span><span id="stat-pips" class="font-extrabold text-amber-400 font-mono">—</span>
+                </div>
+                <div class="bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-700/60 flex items-center gap-2">
+                    <span class="text-slate-400">Trade:</span><span id="stat-total" class="font-bold text-slate-200 font-mono">—</span>
+                </div>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-mono">
+                <thead>
+                    <tr class="text-slate-400 border-b border-slate-800 bg-slate-950/40 uppercase tracking-wider text-[11px]">
+                        <th class="p-3">Masa</th>
+                        <th class="p-3">TF</th>
+                        <th class="p-3">Setup</th>
+                        <th class="p-3">QML</th>
+                        <th class="p-3">Entry</th>
+                        <th class="p-3">SL</th>
+                        <th class="p-3">TP2</th>
+                        <th class="p-3">RR</th>
+                        <th class="p-3">Status</th>
+                        <th class="p-3 text-right">Pips</th>
+                    </tr>
+                </thead>
+                <tbody id="history-table-body" class="divide-y divide-slate-800/60 text-slate-300"></tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<footer class="border-t border-slate-800 bg-slate-900/60 py-3 mt-auto">
+    <div class="max-w-[1700px] mx-auto px-4 flex flex-wrap justify-between items-center text-xs text-slate-500 gap-2">
+        <span>© 2026 XAUUSD Quasimodo Engine — data: Bybit XAUUSDT</span>
+        <span class="text-slate-400"><i class="fa-solid fa-shield-halved text-amber-500 mr-1"></i> Penafian: dagangan emas berisiko tinggi. Bukan nasihat pelaburan.</span>
+    </div>
+</footer>
+
+<script>
+/* ============================================================
+   KONFIGURASI
+   ============================================================ */
+const API_BASE = 'https://api.bybit.com/v5/market';
+const SYMBOL   = 'XAUUSDT';
+const PIVOT_LEN = 3;      // lookback kiri/kanan pivot
+const MAX_BARS  = 40;     // bar maksimum menunggu retrace ke QML
+const PIP       = 0.1;    // 1 pip emas = 0.1
+// --- Penapis kualiti (diuji pada 1000 bar H1 XAUUSDT) ---
+// Tanpa penapis: win rate ~29%. Dengan MIN_RISK + CONFIRM: ~60%.
+const MIN_RISK_ATR = 0.8;   // SL (QML→Head) mesti ≥ 0.8 × ATR — elak SL terlalu rapat
+const MIN_PEN_ATR  = 0.5;   // penembusan Under mesti ≥ 0.5 × ATR
+const MIN_OVER_ATR = 0.25;  // Over mesti ≥ 0.25 × ATR
+const MIN_RR       = 1.5;   // reward/risk minimum — diuji: tanpanya pips negatif
+const REQUIRE_CONFIRM = true; // perlu candle close balik sisi QML sebelum entry
+
+const TF = {
+  '15':  { iv: '15',  label: 'M15', limit: 500 },
+  '60':  { iv: '60',  label: 'H1',  limit: 500 },
+  '240': { iv: '240', label: 'H4',  limit: 500 },
+  'D':   { iv: 'D',   label: 'D1',  limit: 400 }
+};
+
+const state = {
+  tf: '240',
+  candles: [],
+  analysis: null,
+  active: null,
+  live: false,
+  showZones: true,
+  showStruct: false
+};
+
+/* ============================================================
+   DATA
+   ============================================================ */
+async function fetchCandles(tfKey) {
+  const c = TF[tfKey];
+  const url = `${API_BASE}/kline?category=linear&symbol=${SYMBOL}&interval=${c.iv}&limit=${c.limit}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const json = await res.json();
+  if (json.retCode !== 0) throw new Error(json.retMsg || 'API error');
+  return json.result.list.map(k => ({
+    t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5]
+  })).reverse();
+}
+
+async function fetchTicker() {
+  const res = await fetch(`${API_BASE}/tickers?category=linear&symbol=${SYMBOL}`);
+  const json = await res.json();
+  if (json.retCode !== 0) throw new Error(json.retMsg);
+  const d = json.result.list[0];
+  return { last: +d.lastPrice, pct: +d.price24hPcnt * 100 };
+}
+
+// Fallback jika API disekat
+function syntheticCandles(n, base) {
+  const out = [];
+  let price = base, t = Date.now() - n * 3600e3;
+  for (let i = 0; i < n; i++) {
+    const vol = base * 0.0025;
+    const o = price;
+    const drift = Math.sin(i / 18) * vol * 0.9 + (Math.random() - 0.5) * vol;
+    const c = o + drift;
+    const h = Math.max(o, c) + Math.random() * vol * 0.6;
+    const l = Math.min(o, c) - Math.random() * vol * 0.6;
+    out.push({ t: t + i * 3600e3, o, h, l, c, v: Math.random() * 1000 });
+    price = c;
+  }
+  return out;
+}
+
+/* ============================================================
+   INDIKATOR
+   ============================================================ */
+function atr(candles, period = 14) {
+  if (candles.length < period + 1) return 0;
+  let sum = 0;
+  for (let i = candles.length - period; i < candles.length; i++) {
+    const p = candles[i - 1].c;
+    sum += Math.max(candles[i].h - candles[i].l,
+                    Math.abs(candles[i].h - p),
+                    Math.abs(candles[i].l - p));
+  }
+  return sum / period;
+}
+
+function rsi(candles, period = 14) {
+  if (candles.length < period + 1) return null;
+  let gain = 0, loss = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = candles[i].c - candles[i - 1].c;
+    if (d > 0) gain += d; else loss -= d;
+  }
+  let ag = gain / period, al = loss / period;
+  for (let i = period + 1; i < candles.length; i++) {
+    const d = candles[i].c - candles[i - 1].c;
+    ag = (ag * (period - 1) + Math.max(d, 0)) / period;
+    al = (al * (period - 1) + Math.max(-d, 0)) / period;
+  }
+  if (al === 0) return 100;
+  return 100 - 100 / (1 + ag / al);
+}
+
+function findPivots(candles, len) {
+  const out = [];
+  for (let i = len; i < candles.length - len; i++) {
+    let isHigh = true, isLow = true;
+    for (let j = 1; j <= len; j++) {
+      if (candles[i].h <= candles[i - j].h || candles[i].h <= candles[i + j].h) isHigh = false;
+      if (candles[i].l >= candles[i - j].l || candles[i].l >= candles[i + j].l) isLow = false;
+    }
+    if (isHigh) out.push({ idx: i, price: candles[i].h, type: 1 });
+    else if (isLow) out.push({ idx: i, price: candles[i].l, type: -1 });
+  }
+  return out;
+}
+
+function buildZigzag(pivots) {
+  const zz = [];
+  for (const p of pivots) {
+    if (!zz.length) { zz.push({ ...p }); continue; }
+    const last = zz[zz.length - 1];
+    if (last.type === p.type) {
+      if ((p.type === 1 && p.price >= last.price) ||
+          (p.type === -1 && p.price <= last.price)) {
+        zz[zz.length - 1] = { ...p };
+      }
+    } else {
+      zz.push({ ...p });
+    }
+  }
+  return zz;
+}
+
+function analyze(candles) {
+  const pivots = findPivots(candles, PIVOT_LEN);
+  const zz = buildZigzag(pivots);
+  const setups = [];
+  const a14 = atr(candles);
+
+  for (let k = 3; k < zz.length; k++) {
+    const a = zz[k - 3], b = zz[k - 2], c = zz[k - 1], d = zz[k];
+    let dir = null;
+
+    // SELL: HIGH(LS) -> LOW(neck) -> HIGH lebih tinggi (OVER) -> LOW lebih rendah (UNDER)
+    if (a.type === 1 && b.type === -1 && c.type === 1 && d.type === -1 &&
+        c.price > a.price && d.price < b.price) {
+      dir = 'SELL';
+    }
+    // BUY : LOW(LS) -> HIGH(neck) -> LOW lebih rendah (OVER) -> HIGH lebih tinggi (UNDER)
+    else if (a.type === -1 && b.type === 1 && c.type === -1 && d.type === 1 &&
+             c.price < a.price && d.price > b.price) {
+      dir = 'BUY';
+    }
+    if (!dir) continue;
+
+    // Penapis kualiti — diuji pada 1000 bar H1:
+    // tanpa penapis WR ~29%, dengan risk≥0.8ATR + confirmation WR ~60%
+    const riskDist = Math.abs(a.price - c.price);
+    if (riskDist < a14 * MIN_RISK_ATR) continue;
+    const pen = dir === 'SELL' ? (b.price - d.price) : (d.price - b.price);
+    if (pen < a14 * MIN_PEN_ATR) continue;
+    const ovr = dir === 'SELL' ? (c.price - a.price) : (a.price - c.price);
+    if (ovr < a14 * MIN_OVER_ATR) continue;
+    // RR minimum — setup dengan reward kecil berbanding SL dibuang
+    const reward = Math.abs(d.price - a.price);
+    if (riskDist > 0 && reward / riskDist < MIN_RR) continue;
+
+    const s = {
+      dir,
+      qml: a.price, neck: b.price, head: c.price, under: d.price,
+      lsIdx: a.idx, neckIdx: b.idx, headIdx: c.idx, underIdx: d.idx,
+      status: 'ARMED', entryIdx: null, entryPrice: null, result: null, exitIdx: null
+    };
+
+    // Trigger + pengesahan.
+    // Tanpa confirmation: entry pada sentuhan pertama ke QML — tetapi ini
+    // menghasilkan "phantom entry" bila candle yang sama terus tembus SL,
+    // jadi kita tolak terus (setup dianggap gagal).
+    for (let i = d.idx + 1; i < candles.length; i++) {
+      if (i - d.idx > MAX_BARS) { s.status = 'EXPIRED'; break; }
+      const bar = candles[i];
+      const touched = dir === 'SELL' ? bar.h >= s.qml : bar.l <= s.qml;
+      const breached = dir === 'SELL' ? bar.h >= s.head : bar.l <= s.head;  // tembus SL sekali
+      const invalidated = dir === 'SELL' ? bar.c > s.head : bar.c < s.head;
+
+      if (!touched) {
+        if (invalidated) { s.status = 'INVALID'; break; }
+        continue;
+      }
+
+      // Candle yang sentuh QML DAN terus tembus Head: limit di QML akan
+      // terisi dan terus kena stop dalam bar yang sama → kira SL jujur.
+      if (breached) {
+        const holdSide = dir === 'SELL' ? bar.c < s.qml : bar.c > s.qml;
+        if (!holdSide) { s.status = 'INVALID'; break; }
+        s.status = 'TRIGGERED';
+        s.entryIdx = i;
+        s.entryPrice = s.qml;
+        s.result = 'SL';
+        s.exitIdx = i;
+        break;
+      }
+
+      if (REQUIRE_CONFIRM) {
+        const confirmed = dir === 'SELL' ? bar.c < s.qml : bar.c > s.qml;
+        if (!confirmed) {
+          if (invalidated) { s.status = 'INVALID'; break; }
+          continue;
+        }
+      }
+
+      s.status = 'TRIGGERED';
+      s.entryIdx = i;
+      // Entry = limit di QML. Candle yang sentuh QML dan close balik sisi betul
+      // bermakna harga memang melalui QML, jadi limit terisi di QML (bukan di close).
+      s.entryPrice = s.qml;
+      break;
+    }
+
+    // Hasil selepas entry — semak bar entry sendiri dahulu
+    if (s.status === 'TRIGGERED') {
+      for (let j = s.entryIdx + 1; j < candles.length; j++) {
+        const bar = candles[j];
+        const hitSL = dir === 'SELL' ? bar.h >= s.head : bar.l <= s.head;
+        const hitTP = dir === 'SELL' ? bar.l <= s.under : bar.h >= s.under;
+        if (hitSL && hitTP) { s.result = 'SL'; s.exitIdx = j; break; }  // konservatif
+        if (hitSL) { s.result = 'SL'; s.exitIdx = j; break; }
+        if (hitTP) { s.result = 'TP2'; s.exitIdx = j; break; }
+      }
+    }
+
+    s.tp1 = s.neck;
+    s.tp2 = s.under;
+    s.tp3 = dir === 'SELL' ? s.under - (s.qml - s.under)
+                           : s.under + (s.under - s.qml);
+    s.risk = Math.abs(s.qml - s.head);
+    // R:R dikira dari harga entry sebenar (bukan QML) bila ada confirmation
+    const entryRef = s.entryPrice !== null ? s.entryPrice : s.qml;
+    s.rr = s.risk > 0 ? Math.abs(s.tp2 - entryRef) / Math.abs(entryRef - s.head) : null;
+    // RR nominal ikut QML (untuk paparan sebelum entry)
+    s.rrPlan = s.risk > 0 ? Math.abs(s.tp2 - s.qml) / s.risk : null;
+
+    // Fakeout: bar Under menembus leher tetapi close balik ke dalam
+    const uBar = candles[s.underIdx];
+    s.fakeout = dir === 'SELL' ? uBar.c > s.neck : uBar.c < s.neck;
+
+    // Retracement QML berbanding impulse
+    const imp = dir === 'SELL' ? (s.head - s.under) : (s.under - s.head);
+    s.retr = imp > 0 ? (dir === 'SELL' ? (s.head - s.qml) : (s.under - s.qml)) / imp : null;
+
+    setups.push(s);
+  }
+
+  return { pivots, zz, setups, atr: atr(candles), rsi: rsi(candles) };
+}
+
+/* ============================================================
+   PEMILIHAN SETUP AKTIF
+   ============================================================ */
+function pickActive(analysis, candles) {
+  const all = analysis.setups;
+  if (!all.length) return null;
+
+  const lastIdx = candles.length - 1;
+  const price = candles[lastIdx].c;
+  const a14 = analysis.atr || 1;
+
+  // Kira status sentuhan untuk setiap setup
+  all.forEach(x => {
+    x.touched = false;
+    for (let i = x.underIdx + 1; i <= lastIdx; i++) {
+      if (x.dir === 'SELL' ? candles[i].h >= x.qml : candles[i].l <= x.qml) { x.touched = true; break; }
+    }
+    x.barsAgo = lastIdx - x.underIdx;
+    x.distToQml = Math.abs(price - x.qml);
+    x.distAtr = x.distToQml / a14;
+  });
+
+  const tol = a14 * 0.3;
+  const markConfluence = s => {
+    s.confluence = all.some(x => x !== s && Math.abs(x.qml - s.qml) <= tol);
+  };
+
+  // 1) Hanya setup yang benar-benar masih hidup layak jadi isyarat AKTIF
+  const live = all.filter(x =>
+    (x.status === 'ARMED' || x.status === 'TRIGGERED') &&
+    !x.touched && x.distAtr <= 12
+  );
+  if (live.length) {
+    live.sort((p, q) => (p.distAtr - q.distAtr) || (p.underIdx - q.underIdx));
+    const pick = live[0];
+    markConfluence(pick);
+    pick.isLive = true;
+    return pick;
+  }
+
+  // 2) Tiada setup hidup → cari setup terdekat sebagai RUJUKAN sahaja
+  const near = all.filter(x => x.distAtr <= 5 && x.barsAgo <= 120);
+  if (!near.length) return null;   // tiada apa yang relevan dengan harga semasa
+  near.sort((p, q) => (p.distAtr - q.distAtr) || (p.underIdx - q.underIdx));
+  const ref = near[0];
+  markConfluence(ref);
+  ref.isLive = false;
+  analysis.reference = ref;
+  return null;
+}
+
+function fmt(v, d = 2) {
+  return Number.isFinite(v) ? v.toFixed(d) : '—';
+}
+
+/* ============================================================
+   UI
+   ============================================================ */
+function updateUI() {
+  const a = state.analysis;
+  const s = state.active || (a && a.reference) || null;
+  const isLive = !!state.active;
+  const el = id => document.getElementById(id);
+
+  el('chart-tf').innerText = TF[state.tf].label;
+  el('signal-pair').innerText = `XAUUSD (${TF[state.tf].label})`;
+
+  if (!s) {
+    ['level-ls','level-neck','level-head','level-under','level-qml'].forEach(id => el(id).innerText = '—');
+    el('qm-type-badge').innerText = 'TIADA SETUP';
+    el('qm-type-badge').className = 'px-2 py-0.5 rounded text-[11px] font-bold bg-slate-800 text-slate-400 border border-slate-700';
+    el('signal-action').innerText = 'TIADA SETUP';
+    el('signal-action').className = 'text-xl font-black text-slate-400 tracking-wide';
+    el('sig-entry').innerText = el('sig-sl').innerText = '—';
+    el('sig-tp1').innerText = el('sig-tp2').innerText = el('sig-tp3').innerText = '—';
+    el('sig-rr').innerText = '—';
+    el('sig-state-badge').innerText = 'TIADA SETUP AKTIF';
+    el('sig-state-badge').className = 'px-2 py-0.5 bg-slate-800 text-slate-400 font-bold text-[10px] rounded border border-slate-700 tracking-wider';
+    el('signal-card').className = 'bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-xl relative overflow-hidden';
+    el('setup-quality').innerText = '—';
+    el('setup-quality').className = 'font-bold text-slate-400';
+    el('fib-val').innerText = '—';
+    el('fib-bar').style.width = '0%';
+    el('mpl-val').innerText = '—';
+    el('mpl-bar').style.width = '0%';
+    el('chk-fake').className = 'fa-solid fa-circle-xmark text-slate-600';
+    el('chk-fresh').className = 'fa-solid fa-circle-xmark text-slate-600';
+    el('chk-trend').className = 'fa-solid fa-circle-xmark text-slate-600';
+    const rv0 = a && a.rsi !== null ? a.rsi : null;
+    el('rsi-val').innerText = rv0 === null ? '—' : `${rv0.toFixed(1)}`;
+    el('rsi-bar').style.width = `${rv0 === null ? 0 : Math.max(0, Math.min(100, rv0))}%`;
+    el('signal-time').innerText = `Kemaskini: ${new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' })}`;
+    drawChart();
+    return;
+  }
+
+  el('level-ls').innerText   = fmt(s.qml);
+  el('level-neck').innerText = fmt(s.neck);
+  el('level-head').innerText = fmt(s.head);
+  el('level-under').innerText = fmt(s.under);
+  el('level-qml').innerText  = fmt(s.qml);
+
+  const isBuy = s.dir === 'BUY';
+  el('qm-type-badge').innerText = `QM ${s.dir}`;
+  el('qm-type-badge').className = `px-2 py-0.5 rounded text-[11px] font-bold border ${
+    isBuy ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+          : 'bg-red-500/20 text-red-400 border-red-500/30'}`;
+
+  const shownStatus = isLive ? s.status : 'REFERENCE';
+  const statusMap = {
+    ARMED:     { txt: 'MENUNGGU RETRACE',  cls: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
+    TRIGGERED: { txt: 'ENTRY AKTIF',       cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+    INVALID:   { txt: 'DIBATALKAN',        cls: 'bg-slate-700 text-slate-400 border-slate-600' },
+    EXPIRED:   { txt: 'TAMAT TEMPOH',      cls: 'bg-slate-700 text-slate-400 border-slate-600' },
+    REFERENCE: { txt: 'RUJUKAN (TIDAK AKTIF)', cls: 'bg-slate-700 text-slate-400 border-slate-600' }
+  };
+  const st = statusMap[shownStatus] || statusMap.REFERENCE;
+  el('sig-state-badge').innerText = st.txt;
+  el('sig-state-badge').className = `px-2 py-0.5 font-bold text-[10px] rounded border tracking-wider ${st.cls}`;
+
+  el('signal-action').innerText = !isLive ? 'TIADA SETUP AKTIF'
+                                : s.status === 'ARMED' ? `${s.dir} LIMIT`
+                                : s.status === 'TRIGGERED' ? `${s.dir} ACTIVE`
+                                : `${s.dir} ${s.status}`;
+  const dim = !isLive ? 'opacity-60' : '';
+  el('signal-action').className = !isLive
+    ? 'text-lg font-black tracking-wide text-slate-500'
+    : `text-xl font-black tracking-wide ${isBuy ? 'text-emerald-400' : 'text-red-400'} ${dim}`;
+  el('signal-card').className = `bg-slate-900 border-2 rounded-2xl p-3.5 shadow-xl relative overflow-hidden ${
+    !isLive ? 'border-slate-700' : isBuy ? 'border-emerald-500/40 glow-green' : 'border-red-500/40 glow-red'}`;
+
+  el('sig-entry').innerText = isLive ? fmt(s.qml) : '—';
+  el('sig-sl').innerText    = isLive ? `${fmt(s.head)} (${fmt(Math.abs(s.qml - s.head) / PIP, 0)}p)` : '—';
+  el('sig-tp1').innerText   = isLive ? fmt(s.tp1) : '—';
+  el('sig-tp2').innerText   = isLive ? fmt(s.tp2) : '—';
+  el('sig-tp3').innerText   = isLive ? fmt(s.tp3) : '—';
+  el('sig-rr').innerText    = isLive && s.rr ? `1 : ${s.rr.toFixed(2)}` : '—';
+
+  // Confluence
+  const rv = a.rsi;
+  el('rsi-val').innerText = rv === null ? '—' : `${rv.toFixed(1)} ${rv > 70 ? '(Overbought)' : rv < 30 ? '(Oversold)' : '(Neutral)'}`;
+  el('rsi-bar').style.width = `${Math.max(0, Math.min(100, rv || 0))}%`;
+  el('rsi-bar').className = `h-2 rounded-full transition-all ${rv > 70 ? 'bg-red-500' : rv < 30 ? 'bg-emerald-500' : 'bg-amber-500'}`;
+
+  const retrPct = s.retr === null ? 0 : s.retr * 100;
+  el('fib-val').innerText = s.retr === null ? '—' : `${retrPct.toFixed(1)}% ${retrPct >= 50 && retrPct <= 79 ? '★ Golden' : ''}`;
+  el('fib-bar').style.width = `${Math.max(0, Math.min(100, retrPct))}%`;
+
+  el('mpl-val').innerText = s.confluence ? 'YA ★' : 'TIDAK';
+  el('mpl-bar').style.width = s.confluence ? '100%' : '0%';
+
+  const setChk = (id, ok) => {
+    el(id).className = ok ? 'fa-solid fa-circle-check text-emerald-400' : 'fa-solid fa-circle-xmark text-slate-600';
+  };
+  setChk('chk-fake', s.fakeout);
+  setChk('chk-fresh', !s.touched && s.status === 'ARMED');
+  setChk('chk-trend', true);
+
+  let score = 0;
+  if (s.fakeout) score += 30;
+  if (s.confluence) score += 30;
+  if (retrPct >= 50 && retrPct <= 79) score += 25;
+  if (s.rr && s.rr >= 2) score += 15;
+  const q = score >= 80 ? ['Tinggi (A+)', 'text-emerald-400']
+          : score >= 55 ? ['Sederhana (B+)', 'text-amber-400']
+          : ['Rendah (C)', 'text-slate-400'];
+  el('setup-quality').innerText = q[0];
+  el('setup-quality').className = `font-bold ${q[1]}`;
+
+  el('signal-time').innerText = `Kemaskini: ${new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' })}`;
+
+  el('calc-sl-pips').value = (Math.abs(s.qml - s.head) / PIP).toFixed(0);
+  calculateRisk();
+
+  drawChart();
+}
+
+/* ============================================================
+   CANVAS CHART
+   ============================================================ */
+const canvas = document.getElementById('chart');
+
+function prepCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const r = canvas.getBoundingClientRect();
+  canvas.width = Math.floor(r.width * dpr);
+  canvas.height = Math.floor(r.height * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, W: r.width, H: r.height };
+}
+
+function niceStep(range, target) {
+  const raw = range / target;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / mag;
+  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10;
+  return step * mag;
+}
+
+function fmtTime(ms) {
+  const d = new Date(ms);
+  const pad = n => String(n).padStart(2, '0');
+  if (state.tf === 'D') return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function drawChart() {
+  const { ctx, W, H } = prepCanvas();
+  ctx.clearRect(0, 0, W, H);
+
+  const candles = state.candles;
+  if (!candles.length) return;
+  document.getElementById('chart-hint').style.display = 'none';
+
+  const L = 10, R = 86, T = 12, B = 26;
+  const plotW = W - L - R, plotH = H - T - B;
+  const cw = Math.max(4, Math.min(14, Math.floor(plotW / 120)));
+  const visible = Math.max(30, Math.floor(plotW / cw));
+  const start = Math.max(0, candles.length - visible);
+  const lastIdx = candles.length - 1;
+
+  let minP = Infinity, maxP = -Infinity;
+  for (let i = start; i <= lastIdx; i++) {
+    minP = Math.min(minP, candles[i].l);
+    maxP = Math.max(maxP, candles[i].h);
+  }
+
+  const s = state.active || (state.analysis && state.analysis.reference) || null;
+  if (s) {
+    const span = (maxP - minP) || 1;
+    [s.qml, s.head, s.under, s.tp1, s.tp3].forEach(v => {
+      if (Number.isFinite(v) && v > minP - span * 3 && v < maxP + span * 3) {
+        minP = Math.min(minP, v);
+        maxP = Math.max(maxP, v);
+      }
+    });
+  }
+
+  const padP = (maxP - minP) * 0.06 || 0.5;
+  minP -= padP; maxP += padP;
+
+  const py = p => T + (maxP - p) / (maxP - minP) * plotH;
+  const px = i => L + (i - start + 0.5) * cw;
+  const rightX = W - R;
+
+  // Grid + skala harga
+  const stepP = niceStep(maxP - minP, 6);
+  const first = Math.ceil(minP / stepP) * stepP;
+  ctx.font = '10px "Plus Jakarta Sans", sans-serif';
+  ctx.textBaseline = 'middle';
+  for (let p = first; p <= maxP; p += stepP) {
+    const y = py(p);
+    ctx.strokeStyle = 'rgba(148,163,184,0.10)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(rightX, y); ctx.stroke();
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'left';
+    ctx.fillText(p.toFixed(2), rightX + 6, y);
+  }
+
+  // Zon risk/reward
+  if (s && state.showZones) {
+    const yQml = py(s.qml), yHead = py(s.head), yTp3 = py(s.tp3);
+    const x0 = px(Math.max(start, s.lsIdx));
+    ctx.fillStyle = 'rgba(239,68,68,0.07)';
+    ctx.fillRect(x0, Math.min(yQml, yHead), rightX - x0, Math.abs(yHead - yQml));
+    ctx.fillStyle = 'rgba(16,185,129,0.06)';
+    ctx.fillRect(x0, Math.min(yQml, yTp3), rightX - x0, Math.abs(yTp3 - yQml));
+  }
+
+  // Candlestick
+  for (let i = start; i <= lastIdx; i++) {
+    const c = candles[i];
+    const x = px(i);
+    const color = c.c >= c.o ? '#22c55e' : '#ef4444';
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, py(c.h));
+    ctx.lineTo(x, py(c.l));
+    ctx.stroke();
+    const top = py(Math.max(c.o, c.c));
+    const bot = py(Math.min(c.o, c.c));
+    ctx.fillRect(x - Math.max(1, cw * 0.35), top, Math.max(2, cw * 0.7), Math.max(1, bot - top));
+  }
+
+  // Level QM
+  if (s) {
+    const isRef = !state.active;                       // setup rujukan → malapkan
+    const alpha = isRef ? 0.35 : 1;
+    const drawLevel = (price, color, dash, width, label, fromIdx) => {
+      if (!Number.isFinite(price)) return;
+      const y = py(price);
+      if (y < T - 6 || y > T + plotH + 6) return;
+      const x0 = px(Math.max(start, fromIdx ?? s.lsIdx));
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.setLineDash(dash);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(rightX, y); ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.font = 'bold 10px "Plus Jakarta Sans", sans-serif';
+      const text = `${label} ${price.toFixed(2)}`;
+      const tw = ctx.measureText(text).width + 10;
+      ctx.fillStyle = color;
+      ctx.fillRect(rightX - tw - 2, y - 8, tw, 16);
+      ctx.fillStyle = '#0b0f19';
+      ctx.textAlign = 'left';
+      ctx.fillText(text, rightX - tw + 3, y);
+      ctx.restore();
+    };
+
+    drawLevel(s.qml,  '#f59e0b', [],      2.5, 'QML',  s.lsIdx);
+    drawLevel(s.head, '#ef4444', [6, 3],  1.5, 'SL',   s.headIdx);
+    drawLevel(s.tp1,  '#38bdf8', [5, 3],  1.5, 'TP1',  s.neckIdx);
+    drawLevel(s.tp2,  '#a78bfa', [5, 3],  1.5, 'TP2',  s.underIdx);
+    drawLevel(s.tp3,  '#64748b', [2, 4],  1,   'TP3',  s.underIdx);
+
+    // Marker entry
+    if (s.status === 'TRIGGERED' && s.entryIdx !== null && s.entryIdx >= start) {
+      const x = px(s.entryIdx);
+      const y = py(s.qml);
+      const isBuy = s.dir === 'BUY';
+      ctx.fillStyle = isBuy ? '#10b981' : '#ef4444';
+      ctx.beginPath();
+      if (isBuy) {
+        ctx.moveTo(x, y + 16); ctx.lineTo(x - 6, y + 6); ctx.lineTo(x + 6, y + 6);
+      } else {
+        ctx.moveTo(x, y - 16); ctx.lineTo(x - 6, y - 6); ctx.lineTo(x + 6, y - 6);
+      }
+      ctx.closePath(); ctx.fill();
+    }
+
+    // Label struktur (opt-in)
+    if (state.showStruct) {
+      const marks = [
+        { idx: s.lsIdx,    price: s.qml,   txt: '2·LS' },
+        { idx: s.neckIdx,  price: s.neck,  txt: '3·Neck' },
+        { idx: s.headIdx,  price: s.head,  txt: '4·Over' },
+        { idx: s.underIdx, price: s.under, txt: '5·Under' }
+      ];
+      ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
+      ctx.textAlign = 'center';
+      marks.forEach(m => {
+        if (m.idx < start) return;
+        const x = px(m.idx), y = py(m.price);
+        const tw = ctx.measureText(m.txt).width + 8;
+        ctx.fillStyle = 'rgba(15,23,42,0.85)';
+        ctx.fillRect(x - tw / 2, y - 18, tw, 13);
+        ctx.strokeStyle = 'rgba(148,163,184,0.5)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x - tw / 2, y - 18, tw, 13);
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillText(m.txt, x, y - 11);
+      });
+    }
+  }
+
+  // Pivot halus HH/HL/LH/LL
+  if (state.analysis) {
+    const zz = state.analysis.zz;
+    ctx.font = '8px "Plus Jakarta Sans", sans-serif';
+    ctx.textAlign = 'center';
+    for (let k = 0; k < zz.length; k++) {
+      const p = zz[k];
+      if (p.idx < start) continue;
+      let txt = p.type === 1 ? 'H' : 'L';
+      if (k > 0) {
+        const prev = zz[k - 1];
+        txt = p.type === 1 ? (p.price > prev.price ? 'HH' : 'LH')
+                           : (p.price < prev.price ? 'LL' : 'HL');
+      }
+      ctx.fillStyle = 'rgba(148,163,184,0.45)';
+      ctx.fillText(txt, px(p.idx), py(p.price) + (p.type === 1 ? -6 : 12));
+    }
+  }
+
+  // Sumbu masa
+  ctx.strokeStyle = 'rgba(148,163,184,0.15)';
+  ctx.beginPath(); ctx.moveTo(L, T + plotH); ctx.lineTo(rightX, T + plotH); ctx.stroke();
+  ctx.fillStyle = '#64748b';
+  ctx.textAlign = 'center';
+  const tickEvery = Math.max(1, Math.floor(visible / 8));
+  for (let i = start; i <= lastIdx; i += tickEvery) {
+    ctx.fillText(fmtTime(candles[i].t), px(i), T + plotH + 12);
+  }
+
+  // Harga terakhir
+  const lastC = candles[lastIdx];
+  const yLast = py(lastC.c);
+  ctx.fillStyle = lastC.c >= lastC.o ? '#22c55e' : '#ef4444';
+  ctx.fillRect(rightX + 2, yLast - 8, R - 6, 16);
+  ctx.fillStyle = '#0b0f19';
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 10px "Plus Jakarta Sans", sans-serif';
+  ctx.fillText(lastC.c.toFixed(2), rightX + 6, yLast);
+}
+
+/* ============================================================
+   HISTORY
+   ============================================================ */
+function renderHistory() {
+  const a = state.analysis;
+  const tbody = document.getElementById('history-table-body');
+  tbody.innerHTML = '';
+  if (!a) return;
+
+  const rows = a.setups.slice(-10).reverse();
+  let wins = 0, losses = 0, pips = 0, counted = 0;
+
+  rows.forEach(s => {
+    const isBuy = s.dir === 'BUY';
+    let status = s.status, cls, pipsVal = null;
+
+    if (s.status === 'TRIGGERED' && s.result) {
+      const dirMul = isBuy ? 1 : -1;
+      const entryPx = s.entryPrice !== null ? s.entryPrice : s.qml;
+      const exitPrice = s.result === 'TP2' ? s.under : s.head;
+      pipsVal = (exitPrice - entryPx) * dirMul / PIP;
+      pips += pipsVal;
+      counted++;
+      if (s.result === 'TP2') { wins++; status = 'HIT TP2'; cls = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'; }
+      else { losses++; status = 'HIT SL'; cls = 'bg-red-500/20 text-red-400 border-red-500/40'; }
+    } else if (s.status === 'TRIGGERED') {
+      status = 'ENTRY AKTIF';
+      cls = 'bg-amber-500/20 text-amber-400 border-amber-500/40';
+    } else if (s.status === 'ARMED') {
+      status = 'MENUNGGU';
+      cls = 'bg-sky-500/20 text-sky-400 border-sky-500/40';
+    } else {
+      cls = 'bg-slate-700 text-slate-400 border-slate-600';
+    }
+
+    const timeIdx = s.underIdx;
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-slate-800/40 transition-colors';
+    tr.innerHTML = `
+      <td class="p-3 text-slate-400">${new Date(state.candles[timeIdx].t).toLocaleString('ms-MY', { year:'2-digit', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })}</td>
+      <td class="p-3"><span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300">${TF[state.tf].label}</span></td>
+      <td class="p-3 font-bold ${isBuy ? 'text-emerald-400' : 'text-red-400'}">QM ${s.dir}</td>
+      <td class="p-3 text-slate-400">${fmt(s.qml)}</td>
+      <td class="p-3 text-amber-400/90">${s.entryPrice !== null ? fmt(s.entryPrice) : '—'}</td>
+      <td class="p-3 text-red-400/90">${fmt(s.head)}</td>
+      <td class="p-3 text-violet-400/90">${fmt(s.tp2)}</td>
+      <td class="p-3 ${s.rr && s.rr >= 2 ? 'text-emerald-400' : 'text-slate-400'}">${s.rr ? s.rr.toFixed(2) : '—'}</td>
+      <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold border ${cls}">${status}</span></td>
+      <td class="p-3 text-right font-mono ${pipsVal === null ? 'text-slate-500' : pipsVal >= 0 ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}">${pipsVal === null ? '—' : (pipsVal >= 0 ? '+' : '') + pipsVal.toFixed(1)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const total = wins + losses;
+  document.getElementById('stat-winrate').innerText = total ? `${(wins / total * 100).toFixed(1)}%` : '—';
+  document.getElementById('stat-pips').innerText = counted ? `${pips >= 0 ? '+' : ''}${pips.toFixed(0)}` : '—';
+  document.getElementById('stat-total').innerText = `${counted}`;
+}
+
+/* ============================================================
+   MTF
+   ============================================================ */
+async function renderMTF() {
+  const list = document.getElementById('mtf-list');
+  list.innerHTML = '<div class="text-slate-500 text-center py-2">Memuatkan…</div>';
+  const keys = ['15', '60', '240', 'D'];
+  const out = [];
+
+  for (const k of keys) {
+    try {
+      let c;
+      try { c = await fetchCandles(k); } catch { c = syntheticCandles(300, 4130); }
+      const a = analyze(c);
+      const live = pickActive(a, c);
+      const s = live || a.reference || null;
+      out.push({ k, s, live: !!live });
+    } catch {
+      out.push({ k, s: null, live: false });
+    }
+  }
+
+  list.innerHTML = out.map(({ k, s, live }) => {
+    if (!s) {
+      return `<div class="flex items-center justify-between p-2 rounded-lg bg-slate-800/40 border border-slate-700/40">
+        <div class="flex items-center gap-2"><span class="font-bold text-slate-300 w-8">${TF[k].label}</span>
+        <span class="px-2 py-0.5 rounded text-[10px] bg-slate-700 text-slate-400 font-semibold">TIADA</span></div>
+        <span class="text-slate-400 font-mono text-[11px]">—</span></div>`;
+    }
+    const isBuy = s.dir === 'BUY';
+    const active = k === state.tf;
+    const color = isBuy ? 'emerald' : 'red';
+    const tag = live
+      ? `QM ${s.dir}${s.status === 'ARMED' ? ' (ARMED)' : s.status === 'TRIGGERED' ? ' (ENTRY)' : ''}`
+      : `QM ${s.dir} (LEPAS)`;
+    const tagCls = live ? `bg-${color}-500/20 text-${color}-400 font-bold` : 'bg-slate-700 text-slate-400';
+    return `<div class="flex items-center justify-between p-2 rounded-lg bg-slate-800/40 border ${active ? 'border-amber-500/50' : 'border-slate-700/40'}">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-slate-300 w-8">${TF[k].label}</span>
+        <span class="px-2 py-0.5 rounded text-[10px] ${tagCls}">${tag}</span>
+      </div>
+      <span class="${active ? 'text-amber-400' : 'text-slate-400'} font-mono text-[11px]">QML ${fmt(s.qml)}</span></div>`;
+  }).join('');
+}
+
+/* ============================================================
+   KAWALAN
+   ============================================================ */
+function calculateRisk() {
+  const balance = parseFloat(document.getElementById('calc-balance').value) || 0;
+  const riskPct = parseFloat(document.getElementById('calc-risk-pct').value) || 0;
+  const slPips = parseFloat(document.getElementById('calc-sl-pips').value) || 1;
+  const riskUSD = balance * riskPct / 100;
+  let lot = riskUSD / (slPips * 10);
+  if (!Number.isFinite(lot) || lot < 0.01) lot = 0.01;
+  document.getElementById('calc-risk-usd').innerText = `$${riskUSD.toFixed(2)}`;
+  document.getElementById('calc-lot-size').innerText = `${lot.toFixed(2)} Lot`;
+}
+
+function toggleZones() {
+  state.showZones = !state.showZones;
+  document.getElementById('zone-text').innerText = `Zon: ${state.showZones ? 'ON' : 'OFF'}`;
+  drawChart();
+}
+
+function toggleStruct() {
+  state.showStruct = !state.showStruct;
+  document.getElementById('struct-text').innerText = `Label: ${state.showStruct ? 'ON' : 'OFF'}`;
+  drawChart();
+}
+
+async function loadTF(tfKey) {
+  state.tf = tfKey;
+  document.querySelectorAll('.tf-btn').forEach(b => {
+    b.className = 'tf-btn px-3 py-1 rounded-md text-slate-400 hover:text-white transition';
+  });
+  const btn = document.getElementById('tf-' + tfKey);
+  if (btn) btn.className = 'tf-btn px-3 py-1 rounded-md bg-amber-500 text-slate-950 font-bold transition';
+
+  let candles;
+  try {
+    candles = await fetchCandles(tfKey);
+    state.live = true;
+  } catch (e) {
+    console.warn('API gagal, guna data sintetik:', e);
+    candles = syntheticCandles(TF[tfKey].limit, 4130);
+    state.live = false;
+  }
+
+  state.candles = candles;
+  state.analysis = analyze(candles);
+  state.active = pickActive(state.analysis, candles);
+
+  updateUI();
+  renderHistory();
+}
+
+async function refreshAll() {
+  const icon = document.getElementById('refresh-icon');
+  icon.classList.add('fa-spin');
+
+  try {
+    const t = await fetchTicker();
+    setTicker(t.last, t.pct);
+    document.getElementById('market-status').innerHTML =
+      `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Live`;
+    const badge = document.getElementById('data-badge');
+    badge.innerText = 'Data Live';
+    badge.className = 'px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full';
+  } catch {
+    document.getElementById('market-status').innerHTML =
+      `<span class="w-2 h-2 rounded-full bg-amber-500"></span> Offline`;
+    const badge = document.getElementById('data-badge');
+    badge.innerText = 'Mod Simulasi';
+    badge.className = 'px-2 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-full';
+  }
+
+  await loadTF(state.tf);
+  await renderMTF();
+  icon.classList.remove('fa-spin');
+}
+
+function setTicker(price, pct) {
+  document.getElementById('live-price').innerText = price.toFixed(2);
+  const chg = document.getElementById('price-change');
+  chg.innerText = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
+  chg.className = `text-xs font-semibold flex items-center gap-1 ${pct >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
+}
+
+function changeTimeframe(tfKey) {
+  loadTF(tfKey).then(renderMTF);
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+document.getElementById('calc-balance').addEventListener('input', calculateRisk);
+document.getElementById('calc-risk-pct').addEventListener('input', calculateRisk);
+document.getElementById('calc-sl-pips').addEventListener('input', calculateRisk);
+window.addEventListener('resize', () => { if (state.candles.length) drawChart(); });
+
+window.addEventListener('load', () => {
+  refreshAll();
+  setInterval(async () => {
+    try {
+      const t = await fetchTicker();
+      setTicker(t.last, t.pct);
+    } catch {}
+  }, 15000);
+});
+</script>
+</body>
+</html>

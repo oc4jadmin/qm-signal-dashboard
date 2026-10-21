@@ -1,0 +1,12 @@
+{
+  "name": "qm-signal-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "XAUUSD Quasimodo (Over & Under) signal dashboard — level dari data OHLC sebenar",
+  "scripts": {
+    "dev": "npx --yes serve . -l 3000",
+    "start": "npx --yes serve . -l 3000"
+  },
+  "keywords": ["quasimodo", "qml", "xauusd", "trading", "pine-script"],
+  "license": "MIT"
+}
