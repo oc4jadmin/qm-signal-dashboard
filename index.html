@@ -199,6 +199,11 @@
                 <span class="text-[10px] text-slate-400" id="signal-time">—</span>
             </div>
 
+            <button id="mtf-hint" class="hidden w-full text-left flex items-center justify-between gap-2 px-2.5 py-1.5 mb-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-colors">
+                <span id="mtf-hint-text" class="text-[11px] font-semibold text-amber-300"></span>
+                <i class="fa-solid fa-arrow-right text-[10px] text-amber-400"></i>
+            </button>
+
             <div class="flex items-center justify-between mb-2.5">
                 <div>
                     <div class="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Arah Isyarat</div>
@@ -367,7 +372,8 @@ const state = {
   active: null,
   live: false,
   showZones: true,
-  showStruct: false
+  showStruct: false,
+  mtf: []          // ringkasan setiap TF: { k, s, live }
 };
 
 /* ============================================================
@@ -623,22 +629,36 @@ function pickActive(analysis, candles) {
     s.confluence = all.some(x => x !== s && Math.abs(x.qml - s.qml) <= tol);
   };
 
-  // 1) Hanya setup yang benar-benar masih hidup layak jadi isyarat AKTIF
-  const live = all.filter(x =>
-    (x.status === 'ARMED' || x.status === 'TRIGGERED') &&
-    !x.touched && x.distAtr <= 12
-  );
+  // 1) Setup yang masih hidup layak jadi isyarat AKTIF.
+  //    ARMED     = belum disentuh, menunggu retrace ke QML.
+  //    TRIGGERED = QML SUDAH disentuh (itu definisi entry) — jangan tapis !
+  const live = all.filter(x => {
+    if (x.distAtr > 12) return false;
+    if (x.status === 'ARMED') return !x.touched;
+    if (x.status === 'TRIGGERED') return x.result === null;   // trade masih terbuka
+    return false;
+  });
   if (live.length) {
-    live.sort((p, q) => (p.distAtr - q.distAtr) || (p.underIdx - q.underIdx));
+    // Utamakan TRIGGERED (entry aktif) berbanding ARMED (menunggu retrace)
+    live.sort((p, q) => {
+      const pTrig = p.status === 'TRIGGERED' ? 0 : 1;
+      const qTrig = q.status === 'TRIGGERED' ? 0 : 1;
+      return (pTrig - qTrig) || (p.distAtr - q.distAtr) || (p.underIdx - q.underIdx);
+    });
     const pick = live[0];
     markConfluence(pick);
     pick.isLive = true;
     return pick;
   }
 
-  // 2) Tiada setup hidup → cari setup terdekat sebagai RUJUKAN sahaja
-  const near = all.filter(x => x.distAtr <= 5 && x.barsAgo <= 120);
-  if (!near.length) return null;   // tiada apa yang relevan dengan harga semasa
+  // 2) Tiada setup hidup → rujukan terdekat, tetapi HANYA struktur yang sah
+  //    (INVALID / EXPIRED / sudah kena SL-TP tidak layak jadi rujukan)
+  const near = all.filter(x =>
+    (x.status === 'ARMED' || x.status === 'TRIGGERED') &&
+    x.result === null &&
+    x.distAtr <= 5 && x.barsAgo <= 120
+  );
+  if (!near.length) return null;
   near.sort((p, q) => (p.distAtr - q.distAtr) || (p.underIdx - q.underIdx));
   const ref = near[0];
   markConfluence(ref);
@@ -654,6 +674,29 @@ function fmt(v, d = 2) {
 /* ============================================================
    UI
    ============================================================ */
+
+// Kad isyarat hanya menerangkan TF yang sedang dilihat. Kalau TF lain ada
+// entry aktif, tunjuk jalan pintas ke sana — jangan biar pengguna keliru
+// sebab MTF row nampak "ENTRY" tetapi kad kata tiada.
+function renderMtfHint() {
+  const box = document.getElementById('mtf-hint');
+  const txt = document.getElementById('mtf-hint-text');
+  if (!box || !txt) return;
+
+  const here = state.mtf.find(m => m.k === state.tf);
+  if (here && here.live) { box.classList.add('hidden'); return; }
+
+  const best = state.mtf
+    .filter(m => m.k !== state.tf && m.live)
+    .sort((p, q) => (q.s.status === 'TRIGGERED' ? 1 : 0) - (p.s.status === 'TRIGGERED' ? 1 : 0))[0];
+
+  if (!best) { box.classList.add('hidden'); return; }
+
+  txt.innerText = `Entry aktif di ${TF[best.k].label} — ${best.s.dir} @ ${fmt(best.s.qml)}`;
+  box.classList.remove('hidden');
+  box.onclick = () => changeTimeframe(best.k);
+}
+
 function updateUI() {
   const a = state.analysis;
   const s = state.active || (a && a.reference) || null;
@@ -662,6 +705,7 @@ function updateUI() {
 
   el('chart-tf').innerText = TF[state.tf].label;
   el('signal-pair').innerText = `XAUUSD (${TF[state.tf].label})`;
+  renderMtfHint();
 
   if (!s) {
     ['level-ls','level-neck','level-head','level-under','level-qml'].forEach(id => el(id).innerText = '—');
@@ -1081,6 +1125,8 @@ async function renderMTF() {
     }
   }
 
+  state.mtf = out;
+
   list.innerHTML = out.map(({ k, s, live }) => {
     if (!s) {
       return `<div class="flex items-center justify-between p-2 rounded-lg bg-slate-800/40 border border-slate-700/40">
@@ -1090,11 +1136,12 @@ async function renderMTF() {
     }
     const isBuy = s.dir === 'BUY';
     const active = k === state.tf;
-    const color = isBuy ? 'emerald' : 'red';
     const tag = live
       ? `QM ${s.dir}${s.status === 'ARMED' ? ' (ARMED)' : s.status === 'TRIGGERED' ? ' (ENTRY)' : ''}`
       : `QM ${s.dir} (LEPAS)`;
-    const tagCls = live ? `bg-${color}-500/20 text-${color}-400 font-bold` : 'bg-slate-700 text-slate-400';
+    const tagCls = live
+      ? (isBuy ? 'bg-emerald-500/20 text-emerald-400 font-bold' : 'bg-red-500/20 text-red-400 font-bold')
+      : 'bg-slate-700 text-slate-400';
     return `<div class="flex items-center justify-between p-2 rounded-lg bg-slate-800/40 border ${active ? 'border-amber-500/50' : 'border-slate-700/40'}">
       <div class="flex items-center gap-2">
         <span class="font-bold text-slate-300 w-8">${TF[k].label}</span>
@@ -1102,6 +1149,8 @@ async function renderMTF() {
       </div>
       <span class="${active ? 'text-amber-400' : 'text-slate-400'} font-mono text-[11px]">QML ${fmt(s.qml)}</span></div>`;
   }).join('');
+
+  renderMtfHint();
 }
 
 /* ============================================================
