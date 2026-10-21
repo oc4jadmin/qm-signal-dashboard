@@ -1,0 +1,8 @@
+# Bahan rujukan pihak ketiga — jangan deploy
+*.pdf
+
+# Nota dalaman
+.git/
+.gitignore
+.vercel/
+*.log

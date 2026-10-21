@@ -22,3 +22,5 @@ desktop.ini
 
 # Bahan rujukan (hak cipta pihak ketiga, tidak dideploy)
 *.pdf
+
+.vercel
